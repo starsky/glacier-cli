@@ -189,6 +189,10 @@ class Cache(object):
                              order_by(self.Archive.name)):
             yield archive
 
+    def get_archive_detailed_list(self, vault):
+        return tuple(a for a in self._get_archive_list_objects(vault))
+
+
     def get_archive_list(self, vault):
         def force_id(archive):
             return "\t".join([
@@ -472,11 +476,15 @@ class App(object):
         if self.args.force_ids:
             archive_list = list(self.cache.get_archive_list_with_ids(
                 self.args.vault))
+        elif self.args.detailed:
+            archive_list = self.cache.get_archive_detailed_list(self.args.vault)
         else:
             archive_list = list(self.cache.get_archive_list(self.args.vault))
 
-        if archive_list:
+        if archive_list and not self.quiet:
             print(*archive_list, sep="\n")
+
+        return archive_list
 
     def archive_upload(self):
         # XXX: "Leading whitespace in archive descriptions is removed."
@@ -497,6 +505,7 @@ class App(object):
         archive_id = vault.create_archive_from_file(
             file_obj=self.args.file, description=name)
         self.cache.add_archive(self.args.vault, name, archive_id)
+        return archive_id
 
     @staticmethod
     def _write_archive_retrieval_job(f, job, multipart_size):
@@ -661,6 +670,7 @@ class App(object):
         archive_list_subparser = archive_subparser.add_parser('list')
         archive_list_subparser.set_defaults(func=self.archive_list)
         archive_list_subparser.add_argument('--force-ids', action='store_true')
+        archive_list_subparser.add_argument('--detailed', action='store_true')
         archive_list_subparser.add_argument('vault')
         archive_upload_subparser = archive_subparser.add_parser('upload')
         archive_upload_subparser.set_defaults(func=self.archive_upload)
@@ -698,9 +708,9 @@ class App(object):
         job_subparser.add_parser('list').set_defaults(func=self.job_list)
         return parser.parse_args(args)
 
-    def __init__(self, args=None, connection=None, cache=None):
+    def __init__(self, args=None, connection=None, cache=None, quiet=False):
         args = self.parse_args(args)
-
+        self.quiet = quiet
         if connection is None:
             connection = boto.glacier.connect_to_region(args.region)
 
